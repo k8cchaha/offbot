@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OffBot 休假寶</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 36px;
+      width: 100%;
+      max-width: 520px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+    .subtitle { color: #6e6e73; font-size: 14px; margin-bottom: 28px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #3a3a3c; }
+    input[type=text], input[type=password], input[type=date], input[type=time], textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #d2d2d7;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fafafa;
+    }
+    input:focus, textarea:focus { border-color: #0071e3; background: #fff; }
+    textarea { resize: vertical; min-height: 72px; }
+    .field { margin-bottom: 18px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 11px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #0071e3; color: #fff; width: 100%; margin-top: 4px; }
+    .btn-secondary { background: #e8e8ed; color: #1d1d1f; }
+    .btn-link { background: none; color: #0071e3; font-size: 13px; padding: 0; border: none; cursor: pointer; }
+    .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+    .upload-area {
+      border: 2px dashed #d2d2d7;
+      border-radius: 12px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover, .upload-area.drag-over { border-color: #0071e3; background: #f0f6ff; }
+    .upload-icon { font-size: 36px; margin-bottom: 10px; }
+    .upload-area p { color: #6e6e73; font-size: 14px; }
+    .upload-area .hint { font-size: 12px; margin-top: 6px; color: #aeaeb2; }
+    #fileInput { display: none; }
+    .preview-img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 12px;
+      border: 1px solid #e5e5e5;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px 0;
+      color: #6e6e73;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e8e8ed;
+      border-top-color: #0071e3;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #d2d2d7;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .slider { background: #0071e3; }
+    .toggle input:checked + .slider::before { transform: translateX(20px); }
+    .result-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .result-item.success { background: #f0faf4; color: #1a7f3c; }
+    .result-item.error { background: #fff5f5; color: #c0392b; }
+    .result-icon { font-size: 18px; flex-shrink: 0; }
+    .settings-link { text-align: right; margin-bottom: 16px; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .time-fields { margin-top: 4px; }
+    #enableSlackNotify:disabled + label { text-decoration: line-through; color: #aeaeb2; }
+    .display-name-preview {
+      background: #f5f5f7;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: monospace;
+      color: #3a3a3c;
+      word-break: break-all;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 28px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-header h2 { font-size: 18px; font-weight: 600; }
+    .modal-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 20px; color: #6e6e73; padding: 0; line-height: 1;
+    }
+    .tutorial-section { margin-bottom: 24px; }
+    .tutorial-section:last-child { margin-bottom: 0; }
+    .tutorial-section h3 {
+      font-size: 14px; font-weight: 600;
+      color: #0071e3; margin-bottom: 10px;
+    }
+    .tutorial-section ol {
+      padding-left: 18px;
+      color: #3a3a3c;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .tutorial-section code {
+      background: #f0f6ff; color: #0071e3;
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 13px; font-family: monospace;
+    }
+
+    @media (max-width: 480px) {
+      body { align-items: flex-start; padding: 16px; }
+      .card { padding: 24px 20px; border-radius: 12px; }
+      .row { grid-template-columns: 1fr; }
+      /* Prevent iOS from auto-zooming on input focus */
+      input[type=text], input[type=password], input[type=date], input[type=time], textarea {
+        font-size: 16px;
+      }
+      .actions { flex-direction: column-reverse; gap: 10px; }
+      .actions .btn { width: 100%; }
+      .upload-area { padding: 28px 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Init -->
+  <div id="pageInit" class="page active">
+    <div class="loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div id="pageLogin" class="page">
+    <h1>OffBot 休假寶</h1>
+    <p class="subtitle">請輸入員工編號以繼續。</p>
+    <div class="field">
+      <label>員工編號</label>
+      <input type="text" id="loginEmployeeId" placeholder="例如：2501011" maxlength="7"
+             onkeydown="if(event.key==='Enter') login()">
+      <p id="loginError" style="display:none; color:#c0392b; font-size:13px; margin-top:6px;">員工編號格式錯誤！</p>
+    </div>
+    <button class="btn btn-primary" onclick="login()">登入</button>
+  </div>
+
+  <!-- Tutorial Modal -->
+  <div class="modal-backdrop" id="tutorialModal" onclick="closeTutorial(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>使用教學</h2>
+        <button class="modal-close" onclick="document.getElementById('tutorialModal').classList.remove('open')">✕</button>
+      </div>
+
+      <div class="tutorial-section">
+        <h3>1. 連接 Slack 帳號</h3>
+        <ol>
+          <li>前往「設定」頁面，點擊「使用 Slack 帳號登入」</li>
+          <li>在彈出視窗中確認使用 <code>KKCompany</code> Workspace，點擊「允許」授權</li>
+          <li>視窗自動關閉後即代表連接成功，無需手動複製 Token</li>
+        </ol>
+      </div>
+
+      <div class="tutorial-section">
+        <h3>2. 如何取得 Slack 發送通知 Channel ID</h3>
+        <ol>
+          <li>在 Slack 開啟目標 Channel</li>
+          <li>點擊右上角 <code>⋯</code>（更多動作），開啟頻道詳細資訊</li>
+          <li>捲到最下方，即可看到 頻道識別碼（開頭為 <code>C</code>）</li>
+          <li>複製該 ID 貼入設定欄位</li>
+        </ol>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <img src="https://lh3.googleusercontent.com/d/1txIGEWFdW-AWVQsmrOdz_6vTOgsxI25J"
+               alt="Channel ID 截圖 1"
+               style="width:50%; border-radius:8px; border:1px solid #e5e5e5;">
+          <img src="https://lh3.googleusercontent.com/d/1lBdzHD4o8xfn7n4qDF9IcqW5F_OAZ-jF"
+               alt="Channel ID 截圖 2"
+               style="width:50%; border-radius:8px; border:1px solid #e5e5e5;">
+        </div>
+      </div>
+
+      <div class="tutorial-section">
+        <h3>3. 如何取得 Slack 通知對象 User ID</h3>
+        <ol>
+          <li>在 Slack 點擊目標對象的頭像或名稱，開啟個人檔案</li>
+          <li>點擊右上角的 <code>⋯</code>（更多選項）</li>
+          <li>選擇 <code>複製成員識別碼</code></li>
+          <li>複製的內容即為 User ID（開頭為 <code>U</code>）</li>
+        </ol>
+        <img src="https://lh3.googleusercontent.com/d/1Rd5OBsLqE_O9pBRAf0xkuMlxSJkdEhfs"
+             alt="User ID 截圖"
+             style="width:100%; border-radius:8px; margin-top:12px; border:1px solid #e5e5e5;">
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:8px;"
+              onclick="document.getElementById('tutorialModal').classList.remove('open')">關閉</button>
+    </div>
+  </div>
+
+  <!-- Example Modal -->
+  <div class="modal-backdrop" id="exampleModal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>範例</h2>
+        <button class="modal-close" onclick="document.getElementById('exampleModal').classList.remove('open')">✕</button>
+      </div>
+
+      <div class="tutorial-section">
+        <h3>上傳截圖範例</h3>
+        <p style="font-size:13px; color:#6e6e73; margin-bottom:10px;">前往公司請假系統填寫並送出後，對頁面截圖上傳，AI 將自動解析請假人、代理人、日期等資訊。</p>
+        <img src="https://lh3.googleusercontent.com/d/1vMW05TBoKcmHSWqEZ_90Xi3pT4z_ao0M"
+             alt="上傳截圖範例"
+             style="width:100%; border-radius:8px; border:1px solid #e5e5e5;">
+      </div>
+
+      <div class="tutorial-section">
+        <h3>自動化執行結果</h3>
+        <p style="font-size:13px; color:#6e6e73; margin-bottom:12px;">確認資訊後，系統將同步完成以下三項更新：</p>
+
+        <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">📅 Google Calendar</p>
+        <img src="https://lh3.googleusercontent.com/d/1Vhz3wSEwZSbQ9qHM_ppqWIgrMi4t4Oek"
+             alt="Google Calendar 範例"
+             style="width:100%; border-radius:8px; border:1px solid #e5e5e5; margin-bottom:14px;">
+
+        <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">💬 Slack 顯示名稱</p>
+        <img src="https://lh3.googleusercontent.com/d/18UDccGDYHrHHIM6EGfs6V-VkujPjBhN9"
+             alt="Slack 顯示名稱範例"
+             style="width:100%; border-radius:8px; border:1px solid #e5e5e5; margin-bottom:14px;">
+
+        <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">📣 Slack 頻道通知</p>
+        <img src="https://lh3.googleusercontent.com/d/1aHV2DoIwmSbpyPOFT3nAvvi0liECO2sF"
+             alt="Slack 頻道通知範例"
+             style="width:100%; border-radius:8px; border:1px solid #e5e5e5;">
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:8px;"
+              onclick="document.getElementById('exampleModal').classList.remove('open')">關閉</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="pageSettings" class="page">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+      <h1>設定</h1>
+      <button class="btn btn-link" onclick="document.getElementById('tutorialModal').classList.add('open')">教學</button>
+    </div>
+    <p class="subtitle">初次使用請填入以下資訊，僅儲存於 Google Apps Script，不會外傳。</p>
+    <div class="field">
+      <label>Slack 帳號 <span style="color:#c0392b;">（必填）</span></label>
+      <div id="slackConnectedBox" style="display:none; align-items:center; justify-content:space-between; padding:10px 14px; background:#f0faf4; border-radius:8px; border:1.5px solid #a8d8b9; margin-bottom:8px;">
+        <span style="color:#1a7f3c; font-size:14px;">✓ 已連接 KKCompany Slack</span>
+        <button class="btn btn-link" style="color:#c0392b; font-size:13px;" onclick="doDisconnectSlack()">中斷連接</button>
+      </div>
+      <button id="slackConnectBtn" class="btn" style="background:#4A154B; color:#fff; width:100%;" onclick="connectSlack()">使用 Slack 帳號登入</button>
+    </div>
+    <div class="field">
+      <label>Slack 發送通知 Channel ID（選填）</label>
+      <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
+      <p id="channelNameHint" style="font-size:12px; color:#6e6e73; margin-top:4px; min-height:16px;"></p>
+    </div>
+    <div class="field">
+      <label>Slack 通知對象 User ID（選填：若訊息想要 cc 特定對象）</label>
+      <input type="text" id="slackNotifyUserId" placeholder="UXXXXX">
+    </div>
+    <div class="field">
+      <label>訊息顯示名稱（選填：預設是用公司的英文名）</label>
+      <input type="text" id="slackBaseName" placeholder="">
+    </div>
+    <div style="display:flex; gap:10px; margin-top:4px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="showPage('pageUpload')">返回</button>
+      <button class="btn btn-primary" style="flex:2; margin-top:0;" onclick="saveSettings()">儲存設定</button>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div id="pageUpload" class="page">
+    <div class="settings-link" style="display:flex; justify-content:space-between; align-items:center;">
+      <button class="btn btn-link" style="color:#6e6e73; font-size:12px;" onclick="logout()">登出</button>
+      <div style="display:flex; gap:12px; align-items:center; line-height:1;">
+        <button class="btn btn-link" onclick="document.getElementById('exampleModal').classList.add('open')">範例</button>
+        <span style="width:1px; height:14px; background:#d2d2d7; display:inline-block;"></span>
+        <button class="btn btn-link" onclick="showPage('pageSettings')">⚙️ 設定</button>
+      </div>
+    </div>
+    <h1>上傳請假截圖</h1>
+    <p class="subtitle">將公司請假系統的截圖上傳，AI 將自動解析請假日期與資訊。</p>
+    <div class="upload-area" id="uploadArea"
+         onclick="document.getElementById('fileInput').click()"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+      <div class="upload-icon">📋</div>
+      <p>點擊選擇或拖曳截圖至此</p>
+      <p class="hint">支援 PNG、JPG</p>
+    </div>
+    <input type="file" id="fileInput" accept="image/png,image/jpeg" onchange="onFileSelect(event)">
+    <div id="uploadPreview" style="display:none;"></div>
+  </div>
+
+  <!-- Analyzing -->
+  <div id="pageLoading" class="page">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>AI 正在解析截圖中...</p>
+    </div>
+  </div>
+
+  <!-- Confirm -->
+  <div id="pageConfirm" class="page">
+    <h1>確認請假資訊</h1>
+    <p class="subtitle">請確認 AI 解析的資訊是否正確，可直接修改。</p>
+    <div class="row">
+      <div class="field">
+        <label>姓名（英文）</label>
+        <input type="text" id="cfmUserName" oninput="updatePreviews()">
+      </div>
+      <div class="field">
+        <label>代理人（英文）</label>
+        <input type="text" id="cfmSubstitute" oninput="updatePreviews()">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>開始日期</label>
+        <input type="date" id="cfmStartDate" oninput="updatePreviews()">
+      </div>
+      <div class="field">
+        <label>結束日期</label>
+        <input type="date" id="cfmEndDate" oninput="updatePreviews()">
+      </div>
+    </div>
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="cfmIsFullDay" checked onchange="toggleTimeFields(); updatePreviews()">
+        <span class="slider"></span>
+      </label>
+      <span style="font-size:14px;">全天假</span>
+    </div>
+    <div class="time-fields" id="timeFields" style="display:none;">
+      <div class="row">
+        <div class="field">
+          <label>開始時間</label>
+          <input type="time" id="cfmStartTime" oninput="updatePreviews()">
+        </div>
+        <div class="field">
+          <label>結束時間</label>
+          <input type="time" id="cfmEndTime" oninput="updatePreviews()">
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <input type="checkbox" id="enableSlackName" checked>
+        <label for="enableSlackName" style="margin-bottom:0;">更新：Slack 顯示名稱</label>
+      </div>
+      <input type="text" id="displayNamePreview">
+    </div>
+    <div class="field">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <input type="checkbox" id="enableSlackNotify" checked>
+        <label for="enableSlackNotify" style="margin-bottom:0;">更新：Slack 通知訊息 <span id="notifyChannelHint" style="color:#6e6e73; font-weight:400;"></span></label>
+      </div>
+      <input type="text" id="cfmNotifyMessage">
+      <p id="noChannelWarning" style="display:none; color:#c0392b; font-size:12px; margin-top:6px;">請至設定頁填入 Channel ID</p>
+    </div>
+    <div class="field">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <input type="checkbox" id="enableCalendar" checked>
+        <label for="enableCalendar" style="margin-bottom:0;">更新：Google Calendar Leave Event</label>
+      </div>
+      <input type="text" id="cfmCalendarTitle">
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="showPage('pageUpload')">重新上傳</button>
+      <button class="btn btn-primary" style="width:auto;padding:11px 28px;" onclick="executeAll()">確認執行</button>
+    </div>
+  </div>
+
+  <!-- Executing -->
+  <div id="pageExecuting" class="page">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>正在執行中...</p>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="pageResult" class="page">
+    <h1>執行結果</h1>
+    <p class="subtitle" style="margin-bottom:20px;">各步驟執行狀態如下。</p>
+    <div id="resultItems"></div>
+    <button class="btn btn-primary" onclick="reset()" style="margin-top:8px;">完成！回到首頁</button>
+  </div>
+
+</div>
+
+<script>
+  var gSlackChannelName = '';
+
+  // ─── Page navigation ───────────────────────────────────────────────────────
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ─── Login / Logout ────────────────────────────────────────────────────────
+  function getEmployeeId() {
+    return localStorage.getItem('employeeId') || '';
+  }
+
+  function login() {
+    var id = document.getElementById('loginEmployeeId').value.trim();
+    var errorEl = document.getElementById('loginError');
+    if (!/^\d{7}$/.test(id)) {
+      errorEl.style.display = 'block';
+      return;
+    }
+    errorEl.style.display = 'none';
+    localStorage.setItem('employeeId', id);
+    loadSettingsAndProceed(id);
+  }
+
+  function logout() {
+    localStorage.removeItem('employeeId');
+    showPage('pageLogin');
+  }
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
+  window.onload = function() {
+    var id = getEmployeeId();
+    if (id) {
+      loadSettingsAndProceed(id); // pageInit spinner shows while waiting
+    } else {
+      showPage('pageLogin'); // instant, no async call needed
+    }
+  };
+
+  function loadSettingsAndProceed(id) {
+    google.script.run.withSuccessHandler(function(s) {
+      document.getElementById('slackChannelId').value = s.slackChannelId || '';
+      document.getElementById('slackBaseName').value = s.slackBaseName || '';
+      document.getElementById('slackNotifyUserId').value = s.slackNotifyUserId || '';
+      var connected = !!s.slackUserToken;
+      document.getElementById('slackConnectedBox').style.display = connected ? 'flex' : 'none';
+      document.getElementById('slackConnectBtn').style.display = connected ? 'none' : 'block';
+      if (connected && s.slackChannelId) {
+        google.script.run.withSuccessHandler(function(name) {
+          gSlackChannelName = name || '';
+          document.getElementById('channelNameHint').textContent = gSlackChannelName;
+          document.getElementById('notifyChannelHint').textContent = gSlackChannelName ? '(' + gSlackChannelName + ')' : '';
+        }).withFailureHandler(function() {}).getSlackChannelName(id, s.slackChannelId);
+      }
+      if (localStorage.getItem('slack_oauth_return')) {
+        localStorage.removeItem('slack_oauth_return');
+        showPage('pageSettings');
+      } else {
+        showPage(connected ? 'pageUpload' : 'pageSettings');
+      }
+    }).withFailureHandler(onError).getSettings(id);
+  }
+
+  // ─── Channel ID lookup ─────────────────────────────────────────────────────
+  var _channelDebounce = null;
+  function onChannelIdInput() {
+    var val = document.getElementById('slackChannelId').value.trim();
+    var hint = document.getElementById('channelNameHint');
+    clearTimeout(_channelDebounce);
+    if (val.length < 9 || val.length > 11) {
+      hint.textContent = '';
+      return;
+    }
+    hint.textContent = '查詢中...';
+    hint.style.color = '#6e6e73';
+    _channelDebounce = setTimeout(function() {
+      google.script.run
+        .withSuccessHandler(function(name) {
+          hint.textContent = name || '找不到此 Channel';
+          hint.style.color = name ? '#1a7f3c' : '#c0392b';
+        })
+        .withFailureHandler(function() {
+          hint.textContent = '查詢失敗';
+          hint.style.color = '#c0392b';
+        })
+        .getSlackChannelName(getEmployeeId(), val);
+    }, 1000);
+  }
+
+  // ─── Settings ──────────────────────────────────────────────────────────────
+  function connectSlack() {
+    google.script.run
+      .withSuccessHandler(function(oauthUrl) {
+        localStorage.setItem('slack_oauth_return', '1');
+        window.top.location.href = oauthUrl;
+      })
+      .withFailureHandler(onError)
+      .startSlackOAuth(getEmployeeId());
+  }
+
+  function doDisconnectSlack() {
+    if (!confirm('確定要中斷 Slack 連接嗎？')) return;
+    google.script.run
+      .withSuccessHandler(function() {
+        document.getElementById('slackConnectedBox').style.display = 'none';
+        document.getElementById('slackConnectBtn').style.display = 'block';
+      })
+      .withFailureHandler(onError)
+      .disconnectSlack(getEmployeeId());
+  }
+
+  function saveSettings() {
+    var id = getEmployeeId();
+    if (document.getElementById('slackConnectedBox').style.display === 'none') {
+      alert('請先完成 Slack 帳號登入');
+      return;
+    }
+    var settings = {
+      slackChannelId:    document.getElementById('slackChannelId').value.trim(),
+      slackBaseName:     document.getElementById('slackBaseName').value.trim(),
+      slackNotifyUserId: document.getElementById('slackNotifyUserId').value.trim()
+    };
+    google.script.run
+      .withSuccessHandler(function() { showPage('pageUpload'); })
+      .withFailureHandler(onError)
+      .saveSettings(id, settings);
+  }
+
+  // ─── File upload ───────────────────────────────────────────────────────────
+  function onDragOver(e) {
+    e.preventDefault();
+    document.getElementById('uploadArea').classList.add('drag-over');
+  }
+  function onDragLeave() {
+    document.getElementById('uploadArea').classList.remove('drag-over');
+  }
+  function onDrop(e) {
+    e.preventDefault();
+    document.getElementById('uploadArea').classList.remove('drag-over');
+    var file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  }
+  function onFileSelect(e) {
+    var file = e.target.files[0];
+    if (file) processFile(file);
+  }
+
+  function processFile(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = e.target.result;
+      document.getElementById('uploadPreview').innerHTML =
+        '<img class="preview-img" src="' + dataUrl + '">';
+      showPage('pageLoading');
+      google.script.run
+        .withSuccessHandler(onAnalyzeSuccess)
+        .withFailureHandler(onError)
+        .analyzeScreenshot(dataUrl.split(',')[1], file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onAnalyzeSuccess(data) {
+    document.getElementById('cfmUserName').value = data.userName || '';
+    document.getElementById('cfmSubstitute').value = data.substitute || '';
+    document.getElementById('cfmStartDate').value = data.startDate || '';
+    document.getElementById('cfmEndDate').value = data.endDate || '';
+    // 09:00 - 18:00 視為全天假
+    var isFullDay = data.isFullDay !== false;
+    if (data.startTime === '09:00' && data.endTime === '18:00') isFullDay = true;
+    document.getElementById('cfmIsFullDay').checked = isFullDay;
+    document.getElementById('cfmStartTime').value = isFullDay ? '' : (data.startTime || '');
+    document.getElementById('cfmEndTime').value   = isFullDay ? '' : (data.endTime || '');
+    toggleTimeFields();
+    updatePreviews();
+    showPage('pageConfirm');
+  }
+
+  // ─── Confirm helpers ───────────────────────────────────────────────────────
+  function toggleTimeFields() {
+    document.getElementById('timeFields').style.display =
+      document.getElementById('cfmIsFullDay').checked ? 'none' : 'block';
+  }
+
+  function toMD(dateStr) {
+    if (!dateStr) return '';
+    var p = dateStr.split('-');
+    return parseInt(p[1]) + '/' + parseInt(p[2]);
+  }
+
+  function formatDisplayName() {
+    var start    = document.getElementById('cfmStartDate').value;
+    var end      = document.getElementById('cfmEndDate').value;
+    var full     = document.getElementById('cfmIsFullDay').checked;
+    var t0       = document.getElementById('cfmStartTime').value;
+    var t1       = document.getElementById('cfmEndTime').value;
+    var baseName = document.getElementById('slackBaseName').value.trim();
+    var userName = document.getElementById('cfmUserName').value.trim();
+    var displayBase = baseName || userName;
+    if (!start) return '';
+    var ooo;
+    if (!full && t0 && t1) {
+      ooo = '(' + toMD(start) + ' ' + t0 + '-' + t1 + ' OOO)';
+    } else if (!end || start === end) {
+      ooo = '(' + toMD(start) + ' OOO)';
+    } else {
+      ooo = '(' + toMD(start) + ' - ' + toMD(end) + ' OOO)';
+    }
+    return displayBase ? displayBase + ' ' + ooo : ooo;
+  }
+
+  function formatDateRange() {
+    var start = document.getElementById('cfmStartDate').value;
+    var end   = document.getElementById('cfmEndDate').value;
+    var full  = document.getElementById('cfmIsFullDay').checked;
+    var t0    = document.getElementById('cfmStartTime').value;
+    var t1    = document.getElementById('cfmEndTime').value;
+    if (!start) return '';
+    if (!full && t0 && t1) return toMD(start) + ' ' + t0 + '-' + t1;
+    if (!end || start === end) return toMD(start);
+    return toMD(start) + ' - ' + toMD(end);
+  }
+
+  function updatePreviews() {
+    document.getElementById('displayNamePreview').value = formatDisplayName();
+    var range = formatDateRange();
+    var channelId = document.getElementById('slackChannelId').value.trim();
+    var hasChannel = !!channelId;
+    document.getElementById('enableSlackNotify').disabled = !hasChannel;
+    document.getElementById('cfmNotifyMessage').disabled = !hasChannel;
+    document.getElementById('noChannelWarning').style.display = hasChannel ? 'none' : 'block';
+    if (!hasChannel) document.getElementById('enableSlackNotify').checked = false;
+    var notifyId = document.getElementById('slackNotifyUserId').value.trim();
+    document.getElementById('cfmNotifyMessage').value = notifyId
+      ? range + ' 請假 cc <@' + notifyId + '>'
+      : range + ' 請假';
+    var baseName = document.getElementById('slackBaseName').value.trim();
+    var name = baseName || document.getElementById('cfmUserName').value.trim();
+    var sub  = document.getElementById('cfmSubstitute').value.trim();
+    document.getElementById('cfmCalendarTitle').value =
+      (name || 'Name') + ':Personal Leave [' + (sub || '') + ']';
+  }
+
+  // ─── Execute ───────────────────────────────────────────────────────────────
+  function executeAll() {
+    var data = {
+      userName:      document.getElementById('cfmUserName').value,
+      substitute:    document.getElementById('cfmSubstitute').value,
+      startDate:     document.getElementById('cfmStartDate').value,
+      endDate:       document.getElementById('cfmEndDate').value,
+      isFullDay:     document.getElementById('cfmIsFullDay').checked,
+      startTime:     document.getElementById('cfmStartTime').value,
+      endTime:       document.getElementById('cfmEndTime').value,
+      displayName:       document.getElementById('displayNamePreview').value,
+      notifyMessage:     document.getElementById('cfmNotifyMessage').value,
+      calendarTitle:     document.getElementById('cfmCalendarTitle').value,
+      enableSlackName:   document.getElementById('enableSlackName').checked,
+      enableSlackNotify: document.getElementById('enableSlackNotify').checked,
+      enableCalendar:    document.getElementById('enableCalendar').checked
+    };
+    showPage('pageExecuting');
+    google.script.run
+      .withSuccessHandler(onExecuteSuccess)
+      .withFailureHandler(onError)
+      .executeAll(getEmployeeId(), data);
+  }
+
+  function onExecuteSuccess(results) {
+    var steps = [
+      { key: 'calendar',    label: 'Google Calendar 建立 Leave.MT 事件' },
+      { key: 'slackName',   label: 'Slack 更新顯示名稱' },
+      { key: 'slackNotify', label: 'Slack 發送通知' }
+    ];
+    document.getElementById('resultItems').innerHTML = steps
+      .filter(function(s) { return results[s.key] !== null; })
+      .map(function(s) {
+        var r = results[s.key];
+        var errHtml = r.error
+          ? '<br><span style="font-size:12px;opacity:0.75;">' + r.error + '</span>' : '';
+        return '<div class="result-item ' + (r.success ? 'success' : 'error') + '">'
+             + '<span class="result-icon">' + (r.success ? '✅' : '❌') + '</span>'
+             + '<span>' + s.label + errHtml + '</span></div>';
+      }).join('');
+    showPage('pageResult');
+  }
+
+  function onError(err) {
+    alert('發生錯誤：' + (err.message || String(err)));
+    showPage('pageUpload');
+  }
+
+  function closeTutorial(e) {
+    if (e.target === document.getElementById('tutorialModal'))
+      document.getElementById('tutorialModal').classList.remove('open');
+  }
+
+  function reset() {
+    document.getElementById('uploadPreview').innerHTML = '';
+    document.getElementById('fileInput').value = '';
+    showPage('pageUpload');
+  }
+</script>
+</body>
+</html>
