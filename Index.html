@@ -210,14 +210,9 @@
   <!-- Login -->
   <div id="pageLogin" class="page">
     <h1>OffBot 休假寶</h1>
-    <p class="subtitle">請輸入員工編號以繼續。</p>
-    <div class="field">
-      <label>員工編號</label>
-      <input type="text" id="loginEmployeeId" placeholder="例如：2501011" maxlength="7"
-             onkeydown="if(event.key==='Enter') login()">
-      <p id="loginError" style="display:none; color:#c0392b; font-size:13px; margin-top:6px;">員工編號格式錯誤！</p>
-    </div>
-    <button class="btn btn-primary" onclick="login()">登入</button>
+    <p class="subtitle">請使用公司 Slack 帳號登入。</p>
+    <button class="btn" style="background:#4A154B; color:#fff; width:100%; margin-top:8px;" onclick="connectSlack()">使用 Slack 帳號登入</button>
+    <p style="text-align:center; font-size:12px; color:#aeaeb2; margin-top:10px;">(Workspace : kkbox.slack.com)</p>
   </div>
 
   <!-- Tutorial Modal -->
@@ -229,16 +224,7 @@
       </div>
 
       <div class="tutorial-section">
-        <h3>1. 連接 Slack 帳號</h3>
-        <ol>
-          <li>前往「設定」頁面，點擊「使用 Slack 帳號登入」</li>
-          <li>在彈出視窗中確認使用 <code>KKCompany</code> Workspace，點擊「允許」授權</li>
-          <li>視窗自動關閉後即代表連接成功，無需手動複製 Token</li>
-        </ol>
-      </div>
-
-      <div class="tutorial-section">
-        <h3>2. 如何取得 Slack 發送通知 Channel ID</h3>
+        <h3>1. 如何取得 Slack 發送通知 Channel ID</h3>
         <ol>
           <li>在 Slack 開啟目標 Channel</li>
           <li>點擊右上角 <code>⋯</code>（更多動作），開啟頻道詳細資訊</li>
@@ -256,7 +242,7 @@
       </div>
 
       <div class="tutorial-section">
-        <h3>3. 如何取得 Slack 通知對象 User ID</h3>
+        <h3>2. 如何取得 Slack 通知對象 User ID</h3>
         <ol>
           <li>在 Slack 點擊目標對象的頭像或名稱，開啟個人檔案</li>
           <li>點擊右上角的 <code>⋯</code>（更多選項）</li>
@@ -320,15 +306,7 @@
       <h1>設定</h1>
       <button class="btn btn-link" onclick="document.getElementById('tutorialModal').classList.add('open')">教學</button>
     </div>
-    <p class="subtitle">初次使用請填入以下資訊，僅儲存於 Google Apps Script，不會外傳。</p>
-    <div class="field">
-      <label>Slack 帳號 <span style="color:#c0392b;">（必填）</span></label>
-      <div id="slackConnectedBox" style="display:none; align-items:center; justify-content:space-between; padding:10px 14px; background:#f0faf4; border-radius:8px; border:1.5px solid #a8d8b9; margin-bottom:8px;">
-        <span style="color:#1a7f3c; font-size:14px;">✓ 已連接 KKCompany Slack</span>
-        <button class="btn btn-link" style="color:#c0392b; font-size:13px;" onclick="doDisconnectSlack()">中斷連接</button>
-      </div>
-      <button id="slackConnectBtn" class="btn" style="background:#4A154B; color:#fff; width:100%;" onclick="connectSlack()">使用 Slack 帳號登入</button>
-    </div>
+    <p class="subtitle">以下為選填設定，僅儲存於 Google Apps Script，不會外傳。</p>
     <div class="field">
       <label>Slack 發送通知 Channel ID（選填）</label>
       <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
@@ -343,7 +321,7 @@
       <input type="text" id="slackBaseName" placeholder="">
     </div>
     <div style="display:flex; gap:10px; margin-top:4px;">
-      <button class="btn btn-secondary" style="flex:1;" onclick="showPage('pageUpload')">返回</button>
+      <button class="btn btn-secondary" style="flex:1;" onclick="cancelSettings()">返回</button>
       <button class="btn btn-primary" style="flex:2; margin-top:0;" onclick="saveSettings()">儲存設定</button>
     </div>
   </div>
@@ -355,7 +333,7 @@
       <div style="display:flex; gap:12px; align-items:center; line-height:1;">
         <button class="btn btn-link" onclick="document.getElementById('exampleModal').classList.add('open')">範例</button>
         <span style="width:1px; height:14px; background:#d2d2d7; display:inline-block;"></span>
-        <button class="btn btn-link" onclick="showPage('pageSettings')">⚙️ 設定</button>
+        <button class="btn btn-link" onclick="goToSettings('')">⚙️ 設定</button>
       </div>
     </div>
     <h1>上傳請假截圖</h1>
@@ -435,7 +413,10 @@
         <label for="enableSlackNotify" style="margin-bottom:0;">更新：Slack 通知訊息 <span id="notifyChannelHint" style="color:#6e6e73; font-weight:400;"></span></label>
       </div>
       <input type="text" id="cfmNotifyMessage">
-      <p id="noChannelWarning" style="display:none; color:#c0392b; font-size:12px; margin-top:6px;">請至設定頁填入 Channel ID</p>
+      <p id="noChannelWarning" style="display:none; color:#c0392b; font-size:12px; margin-top:6px;">
+        請至設定頁填入 Channel ID
+        <button class="btn btn-link" style="font-size:12px; margin-left:4px;" onclick="goToSettings('pageConfirm')">前往 →</button>
+      </p>
     </div>
     <div class="field">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
@@ -470,6 +451,7 @@
 
 <script>
   var gSlackChannelName = '';
+  var gReturnPage = '';
 
   // ─── Page navigation ───────────────────────────────────────────────────────
   function showPage(id) {
@@ -478,34 +460,22 @@
   }
 
   // ─── Login / Logout ────────────────────────────────────────────────────────
-  function getEmployeeId() {
-    return localStorage.getItem('employeeId') || '';
-  }
-
-  function login() {
-    var id = document.getElementById('loginEmployeeId').value.trim();
-    var errorEl = document.getElementById('loginError');
-    if (!/^\d{7}$/.test(id)) {
-      errorEl.style.display = 'block';
-      return;
-    }
-    errorEl.style.display = 'none';
-    localStorage.setItem('employeeId', id);
-    loadSettingsAndProceed(id);
+  function getSlackUserId() {
+    return localStorage.getItem('slackUserId') || '';
   }
 
   function logout() {
-    localStorage.removeItem('employeeId');
+    localStorage.removeItem('slackUserId');
     showPage('pageLogin');
   }
 
   // ─── Init ──────────────────────────────────────────────────────────────────
   window.onload = function() {
-    var id = getEmployeeId();
+    var id = getSlackUserId();
     if (id) {
-      loadSettingsAndProceed(id); // pageInit spinner shows while waiting
+      loadSettingsAndProceed(id);
     } else {
-      showPage('pageLogin'); // instant, no async call needed
+      showPage('pageLogin');
     }
   };
 
@@ -514,22 +484,14 @@
       document.getElementById('slackChannelId').value = s.slackChannelId || '';
       document.getElementById('slackBaseName').value = s.slackBaseName || '';
       document.getElementById('slackNotifyUserId').value = s.slackNotifyUserId || '';
-      var connected = !!s.slackUserToken;
-      document.getElementById('slackConnectedBox').style.display = connected ? 'flex' : 'none';
-      document.getElementById('slackConnectBtn').style.display = connected ? 'none' : 'block';
-      if (connected && s.slackChannelId) {
+      if (s.slackChannelId) {
         google.script.run.withSuccessHandler(function(name) {
           gSlackChannelName = name || '';
           document.getElementById('channelNameHint').textContent = gSlackChannelName;
           document.getElementById('notifyChannelHint').textContent = gSlackChannelName ? '(' + gSlackChannelName + ')' : '';
         }).withFailureHandler(function() {}).getSlackChannelName(id, s.slackChannelId);
       }
-      if (localStorage.getItem('slack_oauth_return')) {
-        localStorage.removeItem('slack_oauth_return');
-        showPage('pageSettings');
-      } else {
-        showPage(connected ? 'pageUpload' : 'pageSettings');
-      }
+      showPage('pageUpload');
     }).withFailureHandler(onError).getSettings(id);
   }
 
@@ -555,45 +517,64 @@
           hint.textContent = '查詢失敗';
           hint.style.color = '#c0392b';
         })
-        .getSlackChannelName(getEmployeeId(), val);
+        .getSlackChannelName(getSlackUserId(), val);
     }, 1000);
   }
 
   // ─── Settings ──────────────────────────────────────────────────────────────
+  function goToSettings(returnPage) {
+    gReturnPage = returnPage || '';
+    showPage('pageSettings');
+  }
+
+  function cancelSettings() {
+    var returnPage = gReturnPage;
+    gReturnPage = '';
+    showPage(returnPage || 'pageUpload');
+  }
+
   function connectSlack() {
     google.script.run
       .withSuccessHandler(function(oauthUrl) {
-        localStorage.setItem('slack_oauth_return', '1');
         window.top.location.href = oauthUrl;
       })
       .withFailureHandler(onError)
-      .startSlackOAuth(getEmployeeId());
-  }
-
-  function doDisconnectSlack() {
-    if (!confirm('確定要中斷 Slack 連接嗎？')) return;
-    google.script.run
-      .withSuccessHandler(function() {
-        document.getElementById('slackConnectedBox').style.display = 'none';
-        document.getElementById('slackConnectBtn').style.display = 'block';
-      })
-      .withFailureHandler(onError)
-      .disconnectSlack(getEmployeeId());
+      .startSlackOAuth();
   }
 
   function saveSettings() {
-    var id = getEmployeeId();
-    if (document.getElementById('slackConnectedBox').style.display === 'none') {
-      alert('請先完成 Slack 帳號登入');
-      return;
-    }
+    var id = getSlackUserId();
+    var channelId = document.getElementById('slackChannelId').value.trim();
     var settings = {
-      slackChannelId:    document.getElementById('slackChannelId').value.trim(),
+      slackChannelId:    channelId,
       slackBaseName:     document.getElementById('slackBaseName').value.trim(),
       slackNotifyUserId: document.getElementById('slackNotifyUserId').value.trim()
     };
     google.script.run
-      .withSuccessHandler(function() { showPage('pageUpload'); })
+      .withSuccessHandler(function() {
+        var returnPage = gReturnPage;
+        gReturnPage = '';
+        if (returnPage) {
+          if (channelId) {
+            google.script.run.withSuccessHandler(function(name) {
+              gSlackChannelName = name || '';
+              document.getElementById('notifyChannelHint').textContent = gSlackChannelName ? '(' + gSlackChannelName + ')' : '';
+              updatePreviews();
+              showPage(returnPage);
+            }).withFailureHandler(function() {
+              updatePreviews();
+              showPage(returnPage);
+            }).getSlackChannelName(id, channelId);
+          } else {
+            gSlackChannelName = '';
+            document.getElementById('notifyChannelHint').textContent = '';
+            updatePreviews();
+            showPage(returnPage);
+          }
+        } else {
+          showPage('pageUpload');
+        }
+      })
       .withFailureHandler(onError)
       .saveSettings(id, settings);
   }
@@ -734,7 +715,7 @@
     google.script.run
       .withSuccessHandler(onExecuteSuccess)
       .withFailureHandler(onError)
-      .executeAll(getEmployeeId(), data);
+      .executeAll(getSlackUserId(), data);
   }
 
   function onExecuteSuccess(results) {

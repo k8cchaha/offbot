@@ -18,7 +18,8 @@ function doGet(e) {
       '<a id="r" href="<?!= appUrl ?>" target="_top" style="display:none;margin-top:16px;color:#0071e3;font-size:14px;text-decoration:none;">返回 App →<\/a><\/div>' +
       '<script>' +
       'google.script.run' +
-      '.withSuccessHandler(function(){' +
+      '.withSuccessHandler(function(res){' +
+      'localStorage.setItem("slackUserId",res.slackUserId);' +
       'document.querySelector(".spinner").style.display="none";' +
       'document.getElementById("m").textContent="Slack 已成功連接！";' +
       'var r=document.getElementById("r");r.style.display="block";' +
@@ -42,20 +43,20 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-function saveSettings(employeeId, newSettings) {
+function saveSettings(slackUserId, newSettings) {
   var props = PropertiesService.getScriptProperties();
-  var raw = props.getProperty('settings_' + employeeId);
+  var raw = props.getProperty('settings_' + slackUserId);
   var existing = raw ? JSON.parse(raw) : {};
   for (var key in newSettings) {
     existing[key] = newSettings[key];
   }
-  props.setProperty('settings_' + employeeId, JSON.stringify(existing));
+  props.setProperty('settings_' + slackUserId, JSON.stringify(existing));
   return { success: true };
 }
 
-function getSettings(employeeId) {
+function getSettings(slackUserId) {
   var props = PropertiesService.getScriptProperties();
-  var raw = props.getProperty('settings_' + employeeId);
+  var raw = props.getProperty('settings_' + slackUserId);
   if (!raw) return { slackUserToken: '', slackChannelId: '', slackBaseName: '', slackNotifyUserId: '' };
   return JSON.parse(raw);
 }
@@ -66,30 +67,28 @@ function _getRedirectUri() {
   return ScriptApp.getService().getUrl().replace(/\/a\/[^\/]+\/macros\//, '/macros/');
 }
 
-function startSlackOAuth(employeeId) {
+function startSlackOAuth() {
   var props = PropertiesService.getScriptProperties();
   var clientId = props.getProperty('SLACK_CLIENT_ID');
   if (!clientId) throw new Error('Slack 應用程式尚未設定，請聯絡管理員。');
   var nonce = Utilities.getUuid().replace(/-/g, '').substring(0, 16);
-  CacheService.getScriptCache().put('oauth_state_' + nonce, employeeId, 300);
+  CacheService.getScriptCache().put('oauth_nonce_' + nonce, '1', 300);
   var redirectUri = _getRedirectUri();
-  return 'https://slack.com/oauth/v2/authorize'
+  var teamId = props.getProperty('SLACK_TEAM_ID');
+  var url = 'https://slack.com/oauth/v2/authorize'
     + '?client_id=' + encodeURIComponent(clientId)
     + '&user_scope=' + encodeURIComponent('users.profile:write,chat:write,channels:read')
     + '&redirect_uri=' + encodeURIComponent(redirectUri)
-    + '&state=' + encodeURIComponent(employeeId + ':' + nonce);
+    + '&state=' + encodeURIComponent(nonce);
+  if (teamId) url += '&team=' + encodeURIComponent(teamId);
+  return url;
 }
 
 function handleSlackOAuthCallback(code, state) {
-  var parts = (state || '').split(':');
-  if (parts.length < 2) throw new Error('無效的 state 參數');
-  var employeeId = parts[0];
-  var nonce = parts[1];
-
+  var nonce = state || '';
   var cache = CacheService.getScriptCache();
-  var cached = cache.get('oauth_state_' + nonce);
-  if (cached !== employeeId) throw new Error('驗證失敗，請重新嘗試登入');
-  cache.remove('oauth_state_' + nonce);
+  if (cache.get('oauth_nonce_' + nonce) !== '1') throw new Error('驗證失敗，請重新嘗試登入');
+  cache.remove('oauth_nonce_' + nonce);
 
   var props = PropertiesService.getScriptProperties();
   var response = UrlFetchApp.fetch('https://slack.com/api/oauth.v2.access', {
@@ -114,27 +113,18 @@ function handleSlackOAuthCallback(code, state) {
   var userToken = result.authed_user && result.authed_user.access_token;
   if (!userToken) throw new Error('未取得使用者 Token');
 
-  var raw = props.getProperty('settings_' + employeeId);
+  var slackUserId = result.authed_user.id;
+  var raw = props.getProperty('settings_' + slackUserId);
   var settings = raw ? JSON.parse(raw) : {};
   settings.slackUserToken = userToken;
-  props.setProperty('settings_' + employeeId, JSON.stringify(settings));
-  return { success: true };
-}
-
-function disconnectSlack(employeeId) {
-  var props = PropertiesService.getScriptProperties();
-  var raw = props.getProperty('settings_' + employeeId);
-  if (!raw) return { success: true };
-  var settings = JSON.parse(raw);
-  delete settings.slackUserToken;
-  props.setProperty('settings_' + employeeId, JSON.stringify(settings));
-  return { success: true };
+  props.setProperty('settings_' + slackUserId, JSON.stringify(settings));
+  return { success: true, slackUserId: slackUserId };
 }
 
 // ─── Claude Image Analysis ───────────────────────────────────────────────────
 
 function analyzeScreenshot(imageBase64, mimeType) {
-  var apiKey = 'sk-NYJidL2lcouXZlJe4dPh2A';
+  var apiKey = PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY');
 
   var prompt = [
     '這是一張公司請假系統的截圖（中英混合介面）。',
@@ -256,9 +246,9 @@ function sendSlackNotification(token, channelId, message) {
   return { success: true };
 }
 
-function getSlackChannelName(employeeId, channelId) {
-  if (!employeeId || !channelId) return '';
-  var settings = getSettings(employeeId);
+function getSlackChannelName(slackUserId, channelId) {
+  if (!slackUserId || !channelId) return '';
+  var settings = getSettings(slackUserId);
   var token = settings.slackUserToken;
   if (!token) return '';
   var response = UrlFetchApp.fetch('https://slack.com/api/conversations.info?channel=' + channelId, {
@@ -272,8 +262,8 @@ function getSlackChannelName(employeeId, channelId) {
 
 // ─── Execute All ─────────────────────────────────────────────────────────────
 
-function executeAll(employeeId, data) {
-  var settings = getSettings(employeeId);
+function executeAll(slackUserId, data) {
+  var settings = getSettings(slackUserId);
   var slackToken = settings.slackUserToken;
   var channelId = settings.slackChannelId;
 
