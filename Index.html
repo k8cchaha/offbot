@@ -641,6 +641,11 @@
     return parseInt(p[1]) + '/' + parseInt(p[2]);
   }
 
+  function toHour(timeStr) {
+    if (!timeStr) return '';
+    return parseInt(timeStr.split(':')[0], 10).toString();
+  }
+
   function formatDisplayName() {
     var start    = document.getElementById('cfmStartDate').value;
     var end      = document.getElementById('cfmEndDate').value;
@@ -653,11 +658,11 @@
     if (!start) return '';
     var ooo;
     if (!full && t0 && t1) {
-      ooo = '(' + toMD(start) + ' ' + t0 + '-' + t1 + ' OOO)';
+      ooo = toMD(start) + ' ' + toHour(t0) + '-' + toHour(t1) + ' OOO';
     } else if (!end || start === end) {
-      ooo = '(' + toMD(start) + ' OOO)';
+      ooo = toMD(start) + ' OOO';
     } else {
-      ooo = '(' + toMD(start) + ' - ' + toMD(end) + ' OOO)';
+      ooo = toMD(start) + '-' + toMD(end) + ' OOO';
     }
     return displayBase ? displayBase + ' ' + ooo : ooo;
   }
