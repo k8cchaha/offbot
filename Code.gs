@@ -4,7 +4,7 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.code) {
     var t = HtmlService.createTemplate(
       '<!DOCTYPE html><html>' +
-      '<head><meta charset="UTF-8"><style>' +
+      '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
       'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f7;' +
       'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}' +
       '.box{background:#fff;border-radius:16px;padding:32px 40px;text-align:center;' +
@@ -35,7 +35,7 @@ function doGet(e) {
     t.code = JSON.stringify(e.parameter.code);
     t.state = JSON.stringify(e.parameter.state || '');
     t.appUrl = _getRedirectUri();
-    return t.evaluate().setTitle('連接 Slack...');
+    return t.evaluate().setTitle('連接 Slack...').addMetaTag('viewport', 'width=device-width, initial-scale=1');
   }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('OffBot 休假寶')
