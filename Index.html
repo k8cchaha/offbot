@@ -68,6 +68,19 @@
     .upload-icon { font-size: 36px; margin-bottom: 10px; }
     .upload-area p { color: #6e6e73; font-size: 14px; }
     .upload-area .hint { font-size: 12px; margin-top: 6px; color: #aeaeb2; }
+    .entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+    .entry-card {
+      border: 2px dashed #d2d2d7;
+      border-radius: 12px;
+      padding: 32px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .entry-card:hover, .entry-card.drag-over { border-color: #0071e3; background: #f0f6ff; }
+    .entry-icon { font-size: 32px; margin-bottom: 10px; }
+    .entry-title { font-size: 14px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; }
+    .entry-desc { font-size: 12px; color: #6e6e73; line-height: 1.5; }
     #fileInput { display: none; }
     .preview-img {
       max-width: 100%;
@@ -336,14 +349,21 @@
         <button class="btn btn-link" onclick="goToSettings('')">⚙️ 設定</button>
       </div>
     </div>
-    <h1>上傳請假截圖</h1>
-    <p class="subtitle">將公司請假系統的截圖上傳，AI 將自動解析請假日期與資訊。</p>
-    <div class="upload-area" id="uploadArea"
-         onclick="document.getElementById('fileInput').click()"
-         ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
-      <div class="upload-icon">📋</div>
-      <p>點擊選擇或拖曳截圖至此</p>
-      <p class="hint">支援 PNG、JPG</p>
+    <h1>OffBot 休假寶</h1>
+    <p class="subtitle">選擇輸入方式</p>
+    <div class="entry-grid">
+      <div class="entry-card" id="uploadArea"
+           onclick="document.getElementById('fileInput').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+        <div class="entry-icon">📋</div>
+        <p class="entry-title">上傳請假截圖</p>
+        <p class="entry-desc">AI 自動解析<br>請假日期與資訊</p>
+      </div>
+      <div class="entry-card" onclick="manualInput()">
+        <div class="entry-icon">✏️</div>
+        <p class="entry-title">手動輸入</p>
+        <p class="entry-desc">直接填寫<br>請假日期與資訊</p>
+      </div>
     </div>
     <input type="file" id="fileInput" accept="image/png,image/jpeg" onchange="onFileSelect(event)">
     <div id="uploadPreview" style="display:none;"></div>
@@ -426,7 +446,7 @@
       <input type="text" id="cfmCalendarTitle">
     </div>
     <div class="actions">
-      <button class="btn btn-secondary" onclick="showPage('pageUpload')">重新上傳</button>
+      <button class="btn btn-secondary" onclick="showPage('pageUpload')">返回</button>
       <button class="btn btn-primary" style="width:auto;padding:11px 28px;" onclick="executeAll()">確認執行</button>
     </div>
   </div>
@@ -577,6 +597,26 @@
       })
       .withFailureHandler(onError)
       .saveSettings(id, settings);
+  }
+
+  // ─── Manual input ─────────────────────────────────────────────────────
+  function manualInput() {
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    var todayStr = yyyy + '-' + mm + '-' + dd;
+    var baseName = document.getElementById('slackBaseName').value.trim();
+    document.getElementById('cfmUserName').value = baseName || '';
+    document.getElementById('cfmSubstitute').value = '';
+    document.getElementById('cfmStartDate').value = todayStr;
+    document.getElementById('cfmEndDate').value = todayStr;
+    document.getElementById('cfmIsFullDay').checked = true;
+    document.getElementById('cfmStartTime').value = '';
+    document.getElementById('cfmEndTime').value = '';
+    toggleTimeFields();
+    updatePreviews();
+    showPage('pageConfirm');
   }
 
   // ─── File upload ───────────────────────────────────────────────────────────
