@@ -327,13 +327,17 @@
     </div>
     <div class="field">
       <label>Slack 通知對象 User ID（選填：若訊息想要 cc 特定對象）</label>
-      <input type="text" id="slackNotifyUserId" placeholder="UXXXXX">
+      <input type="text" id="slackNotifyUserId" placeholder="UXXXXXXXXX">
     </div>
     <div class="field">
-      <label>訊息顯示名稱（選填：預設是用公司的英文名）</label>
+      <label>訊息顯示名稱（選填，預設使用公司英文名）</label>
       <input type="text" id="slackBaseName" placeholder="">
     </div>
-    <div style="display:flex; gap:10px; margin-top:4px;">
+    <p style="font-size:12px; color:#6e6e73; margin-bottom:18px;">
+      找不到 Channel ID 或 User ID？→
+      <button class="btn btn-link" style="font-size:12px;" onclick="document.getElementById('tutorialModal').classList.add('open')">查看右上方教學</button>
+    </p>
+    <div style="display:flex; gap:10px;">
       <button class="btn btn-secondary" style="flex:1;" onclick="cancelSettings()">返回</button>
       <button class="btn btn-primary" style="flex:2; margin-top:0;" onclick="saveSettings()">儲存設定</button>
     </div>
