@@ -485,7 +485,7 @@ function analyzeScreenshot(imageBase64, mimeType) {
   ].join('\n');
 
   var payload = {
-    model: 'claude-haiku-4-5',
+    model: 'gpt-6-sol',
     max_tokens: 512,
     messages: [{
       role: 'user',
