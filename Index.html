@@ -26,7 +26,7 @@
     h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
     .subtitle { color: #6e6e73; font-size: 14px; margin-bottom: 28px; }
     label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #3a3a3c; }
-    input[type=text], input[type=password], input[type=date], input[type=time], textarea {
+    input[type=text], input[type=password], input[type=date], textarea, select {
       width: 100%;
       padding: 10px 14px;
       border: 1.5px solid #d2d2d7;
@@ -36,8 +36,11 @@
       transition: border-color 0.2s;
       background: #fafafa;
     }
-    input:focus, textarea:focus { border-color: #0071e3; background: #fff; }
+    input:focus, textarea:focus, select:focus { border-color: #0071e3; background: #fff; }
     textarea { resize: vertical; min-height: 72px; }
+    .time-picker { display: flex; align-items: center; gap: 8px; }
+    .time-picker select { flex: 1; appearance: auto; }
+    .time-separator { font-size: 18px; font-weight: 600; color: #6e6e73; }
     .field { margin-bottom: 18px; }
     .settings-section {
       border: 1px solid #e5e5ea;
@@ -217,7 +220,7 @@
       .card { padding: 24px 20px; border-radius: 12px; }
       .row { grid-template-columns: 1fr; }
       /* Prevent iOS from auto-zooming on input focus */
-      input[type=text], input[type=password], input[type=date], input[type=time], textarea {
+      input[type=text], input[type=password], input[type=date], textarea, select {
         font-size: 16px;
       }
       .actions { flex-direction: column-reverse; gap: 10px; }
@@ -444,12 +447,20 @@
     <div class="time-fields" id="timeFields" style="display:none;">
       <div class="row">
         <div class="field">
-          <label>開始時間</label>
-          <input type="time" id="cfmStartTime" oninput="updatePreviews()">
+          <label>開始時間（24 小時制）</label>
+          <div class="time-picker">
+            <select id="cfmStartHour" aria-label="開始小時" onchange="updatePreviews()"></select>
+            <span class="time-separator">:</span>
+            <select id="cfmStartMinute" aria-label="開始分鐘" onchange="updatePreviews()"></select>
+          </div>
         </div>
         <div class="field">
-          <label>結束時間</label>
-          <input type="time" id="cfmEndTime" oninput="updatePreviews()">
+          <label>結束時間（24 小時制）</label>
+          <div class="time-picker">
+            <select id="cfmEndHour" aria-label="結束小時" onchange="updatePreviews()"></select>
+            <span class="time-separator">:</span>
+            <select id="cfmEndMinute" aria-label="結束分鐘" onchange="updatePreviews()"></select>
+          </div>
         </div>
       </div>
     </div>
@@ -529,6 +540,7 @@
 
   // ─── Init ──────────────────────────────────────────────────────────────────
   window.onload = function() {
+    initializeTimePickers();
     var id = getSlackUserId();
     if (id) {
       loadSettingsAndProceed(id);
@@ -665,8 +677,8 @@
       startDate: document.getElementById('cfmStartDate').value,
       endDate: document.getElementById('cfmEndDate').value,
       isFullDay: document.getElementById('cfmIsFullDay').checked,
-      startTime: document.getElementById('cfmStartTime').value,
-      endTime: document.getElementById('cfmEndTime').value,
+      startTime: getTimePickerValue('Start'),
+      endTime: getTimePickerValue('End'),
       displayName: document.getElementById('displayNamePreview').value,
       notifyMessage: document.getElementById('cfmNotifyMessage').value,
       calendarTitle: document.getElementById('cfmCalendarTitle').value,
@@ -701,8 +713,8 @@
     document.getElementById('cfmStartDate').value = draft.startDate || '';
     document.getElementById('cfmEndDate').value = draft.endDate || '';
     document.getElementById('cfmIsFullDay').checked = draft.isFullDay === true;
-    document.getElementById('cfmStartTime').value = draft.startTime || '';
-    document.getElementById('cfmEndTime').value = draft.endTime || '';
+    setTimePickerValue('Start', draft.startTime || '09:00');
+    setTimePickerValue('End', draft.endTime || '18:00');
     document.getElementById('displayNamePreview').value = draft.displayName || '';
     document.getElementById('cfmNotifyMessage').value = draft.notifyMessage || '';
     document.getElementById('cfmCalendarTitle').value = draft.calendarTitle || '';
@@ -832,8 +844,8 @@
     document.getElementById('cfmStartDate').value = todayStr;
     document.getElementById('cfmEndDate').value = todayStr;
     document.getElementById('cfmIsFullDay').checked = true;
-    document.getElementById('cfmStartTime').value = '';
-    document.getElementById('cfmEndTime').value = '';
+    setTimePickerValue('Start', '09:00');
+    setTimePickerValue('End', '18:00');
     toggleTimeFields();
     renderCalendarAvailability(true);
     updatePreviews();
@@ -883,8 +895,8 @@
     var isFullDay = data.isFullDay !== false;
     if (data.startTime === '09:00' && data.endTime === '18:00') isFullDay = true;
     document.getElementById('cfmIsFullDay').checked = isFullDay;
-    document.getElementById('cfmStartTime').value = isFullDay ? '' : (data.startTime || '');
-    document.getElementById('cfmEndTime').value   = isFullDay ? '' : (data.endTime || '');
+    setTimePickerValue('Start', data.startTime || '09:00');
+    setTimePickerValue('End', data.endTime || '18:00');
     toggleTimeFields();
     renderCalendarAvailability(true);
     updatePreviews();
@@ -892,6 +904,39 @@
   }
 
   // ─── Confirm helpers ───────────────────────────────────────────────────────
+  function initializeTimePickers() {
+    ['cfmStartHour', 'cfmEndHour'].forEach(function(id) {
+      var select = document.getElementById(id);
+      for (var hour = 0; hour < 24; hour++) {
+        var value = String(hour).padStart(2, '0');
+        select.add(new Option(value, value));
+      }
+    });
+    ['cfmStartMinute', 'cfmEndMinute'].forEach(function(id) {
+      var select = document.getElementById(id);
+      for (var minute = 0; minute < 60; minute++) {
+        var value = String(minute).padStart(2, '0');
+        select.add(new Option(value, value));
+      }
+    });
+    setTimePickerValue('Start', '09:00');
+    setTimePickerValue('End', '18:00');
+  }
+
+  function setTimePickerValue(prefix, time) {
+    var parts = /^(\d{2}):(\d{2})$/.exec(time || '');
+    var hour = parts ? Number(parts[1]) : -1;
+    var minute = parts ? Number(parts[2]) : -1;
+    var isValid = hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+    document.getElementById('cfm' + prefix + 'Hour').value = isValid ? parts[1] : (prefix === 'Start' ? '09' : '18');
+    document.getElementById('cfm' + prefix + 'Minute').value = isValid ? parts[2] : '00';
+  }
+
+  function getTimePickerValue(prefix) {
+    return document.getElementById('cfm' + prefix + 'Hour').value + ':' +
+      document.getElementById('cfm' + prefix + 'Minute').value;
+  }
+
   function toggleTimeFields() {
     document.getElementById('timeFields').style.display =
       document.getElementById('cfmIsFullDay').checked ? 'none' : 'block';
@@ -912,8 +957,8 @@
     var start    = document.getElementById('cfmStartDate').value;
     var end      = document.getElementById('cfmEndDate').value;
     var full     = document.getElementById('cfmIsFullDay').checked;
-    var t0       = document.getElementById('cfmStartTime').value;
-    var t1       = document.getElementById('cfmEndTime').value;
+    var t0       = getTimePickerValue('Start');
+    var t1       = getTimePickerValue('End');
     var baseName = document.getElementById('slackBaseName').value.trim();
     var userName = document.getElementById('cfmUserName').value.trim();
     var displayBase = baseName || userName;
@@ -933,8 +978,8 @@
     var start = document.getElementById('cfmStartDate').value;
     var end   = document.getElementById('cfmEndDate').value;
     var full  = document.getElementById('cfmIsFullDay').checked;
-    var t0    = document.getElementById('cfmStartTime').value;
-    var t1    = document.getElementById('cfmEndTime').value;
+    var t0    = getTimePickerValue('Start');
+    var t1    = getTimePickerValue('End');
     if (!start) return '';
     if (!full && t0 && t1) return toMD(start) + ' ' + t0 + '-' + t1;
     if (!end || start === end) return toMD(start);
@@ -977,8 +1022,8 @@
     }
     if (isFullDay) return true;
 
-    var startTime = document.getElementById('cfmStartTime').value;
-    var endTime = document.getElementById('cfmEndTime').value;
+    var startTime = getTimePickerValue('Start');
+    var endTime = getTimePickerValue('End');
     if (!startTime || !endTime) {
       alert('非全天假請填寫開始時間與結束時間。');
       return false;
@@ -999,8 +1044,8 @@
       startDate:     document.getElementById('cfmStartDate').value,
       endDate:       document.getElementById('cfmEndDate').value,
       isFullDay:     document.getElementById('cfmIsFullDay').checked,
-      startTime:     document.getElementById('cfmStartTime').value,
-      endTime:       document.getElementById('cfmEndTime').value,
+      startTime:     getTimePickerValue('Start'),
+      endTime:       getTimePickerValue('End'),
       displayName:       document.getElementById('displayNamePreview').value,
       notifyMessage:     document.getElementById('cfmNotifyMessage').value,
       calendarTitle:     document.getElementById('cfmCalendarTitle').value,
