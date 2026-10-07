@@ -958,11 +958,41 @@
     var name = baseName || document.getElementById('cfmUserName').value.trim();
     var sub  = document.getElementById('cfmSubstitute').value.trim();
     document.getElementById('cfmCalendarTitle').value =
-      (name || 'Name') + ':Personal Leave [' + (sub || '') + ']';
+      (name || 'Name') + ': Personal Leave [' + (sub || '') + ']';
   }
 
   // ─── Execute ───────────────────────────────────────────────────────────────
+  function validateLeavePeriod() {
+    var startDate = document.getElementById('cfmStartDate').value;
+    var endDate = document.getElementById('cfmEndDate').value;
+    var isFullDay = document.getElementById('cfmIsFullDay').checked;
+
+    if (!startDate || !endDate) {
+      alert('請填寫開始日期與結束日期。');
+      return false;
+    }
+    if (endDate < startDate) {
+      alert('結束日期不得早於開始日期。');
+      return false;
+    }
+    if (isFullDay) return true;
+
+    var startTime = document.getElementById('cfmStartTime').value;
+    var endTime = document.getElementById('cfmEndTime').value;
+    if (!startTime || !endTime) {
+      alert('非全天假請填寫開始時間與結束時間。');
+      return false;
+    }
+    if (endDate + 'T' + endTime <= startDate + 'T' + startTime) {
+      alert('結束日期／時間必須晚於開始日期／時間。');
+      return false;
+    }
+    return true;
+  }
+
   function executeAll() {
+    if (!validateLeavePeriod()) return;
+
     var data = {
       userName:      document.getElementById('cfmUserName').value,
       substitute:    document.getElementById('cfmSubstitute').value,
