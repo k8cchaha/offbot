@@ -244,7 +244,7 @@
     <h1>OffBot 休假寶</h1>
     <p class="subtitle">請使用公司 Slack 帳號登入。</p>
     <button class="btn" style="background:#4A154B; color:#fff; width:100%; margin-top:8px;" onclick="connectSlack()">使用 Slack 帳號登入</button>
-    <p style="text-align:center; font-size:12px; color:#aeaeb2; margin-top:10px;">(Workspace : kkbox.slack.com)</p>
+    <p style="text-align:center; font-size:13px; font-weight:600; color:#ff3b30; margin-top:10px;">(Workspace : kkbox.slack.com)</p>
   </div>
 
   <!-- Tutorial Modal -->
@@ -353,7 +353,7 @@
       <h2 class="settings-section-title">Slack</h2>
       <div class="field">
         <label>發送通知 Channel ID（選填）</label>
-        <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
+        <input type="text" id="slackChannelId" placeholder="C... 或 G..." oninput="onChannelIdInput()">
         <p id="channelNameHint" style="font-size:12px; color:#6e6e73; margin-top:4px; min-height:16px;"></p>
       </div>
       <div class="field">
@@ -588,7 +588,7 @@
     var val = document.getElementById('slackChannelId').value.trim();
     var hint = document.getElementById('channelNameHint');
     clearTimeout(_channelDebounce);
-    if (val.length < 9 || val.length > 11) {
+    if (!val) {
       hint.textContent = '';
       return;
     }

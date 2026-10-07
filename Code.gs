@@ -211,7 +211,7 @@ function startSlackOAuth() {
   var teamId = props.getProperty('SLACK_TEAM_ID');
   var url = 'https://slack.com/oauth/v2/authorize'
     + '?client_id=' + encodeURIComponent(clientId)
-    + '&user_scope=' + encodeURIComponent('users.profile:write,chat:write,channels:read')
+    + '&user_scope=' + encodeURIComponent('users.profile:write,chat:write,channels:read,groups:read')
     + '&redirect_uri=' + encodeURIComponent(redirectUri)
     + '&state=' + encodeURIComponent(state);
   if (teamId) url += '&team=' + encodeURIComponent(teamId);
@@ -772,17 +772,21 @@ function sendSlackNotification(token, channelId, message) {
 }
 
 function getSlackChannelName(slackUserId, channelId) {
+  channelId = String(channelId || '').trim();
   if (!slackUserId || !channelId) return '';
   var settings = getSettingsInternal_(slackUserId);
   var token = settings.slackUserToken;
   if (!token) return '';
-  var response = UrlFetchApp.fetch('https://slack.com/api/conversations.info?channel=' + channelId, {
-    headers: { 'Authorization': 'Bearer ' + token },
-    muteHttpExceptions: true
-  });
+  var response = UrlFetchApp.fetch(
+    'https://slack.com/api/conversations.info?channel=' + encodeURIComponent(channelId),
+    {
+      headers: { 'Authorization': 'Bearer ' + token },
+      muteHttpExceptions: true
+    }
+  );
   var result = JSON.parse(response.getContentText());
-  if (!result.ok) return '';
-  return '#' + result.channel.name;
+  if (!result.ok || !result.channel) return '';
+  return '#' + (result.channel.name || result.channel.name_normalized || channelId);
 }
 
 // ─── Execute All ─────────────────────────────────────────────────────────────
