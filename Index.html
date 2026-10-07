@@ -51,6 +51,8 @@
       transition: opacity 0.15s;
     }
     .btn:hover { opacity: 0.85; }
+    .btn:disabled { cursor: not-allowed; opacity: 0.55; }
+    .btn:disabled:hover { opacity: 0.55; }
     .btn-primary { background: #0071e3; color: #fff; width: 100%; margin-top: 4px; }
     .btn-secondary { background: #e8e8ed; color: #1d1d1f; }
     .btn-link { background: none; color: #0071e3; font-size: 13px; padding: 0; border: none; cursor: pointer; }
@@ -290,12 +292,10 @@
 
       <div class="tutorial-section">
         <h3>自動化執行結果</h3>
-        <p style="font-size:13px; color:#6e6e73; margin-bottom:12px;">確認資訊後，系統將同步完成以下三項更新：</p>
+        <p style="font-size:13px; color:#6e6e73; margin-bottom:12px;">確認資訊後，系統將依你的選擇完成以下更新：</p>
 
-        <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">📅 Google Calendar</p>
-        <img src="https://lh3.googleusercontent.com/d/1Vhz3wSEwZSbQ9qHM_ppqWIgrMi4t4Oek"
-             alt="Google Calendar 範例"
-             style="width:100%; border-radius:8px; border:1px solid #e5e5e5; margin-bottom:14px;">
+        <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">📅 Google Calendar 不在辦公室事件</p>
+        <p style="font-size:13px; color:#6e6e73; line-height:1.5; margin-bottom:14px;">事件會建立在綁定帳號的主要日曆，並自動拒絕所有衝突邀請。</p>
 
         <p style="font-size:12px; font-weight:600; color:#3a3a3c; margin-bottom:6px;">💬 Slack 顯示名稱</p>
         <img src="https://lh3.googleusercontent.com/d/18UDccGDYHrHHIM6EGfs6V-VkujPjBhN9"
@@ -320,6 +320,16 @@
       <button class="btn btn-link" onclick="document.getElementById('tutorialModal').classList.add('open')">教學</button>
     </div>
     <p class="subtitle">以下為選填設定，僅儲存於 Google Apps Script，不會外傳。</p>
+    <div class="field">
+      <label>個人 Google Calendar</label>
+      <p style="font-size:13px; color:#6e6e73; line-height:1.5; margin-bottom:8px;">
+        綁定公司 Google 帳號後，系統會在該帳號的主要日曆建立不在辦公室事件，並自動拒絕所有衝突邀請。
+      </p>
+      <p id="googleConnectionStatus" style="font-size:13px; font-weight:500; margin-bottom:10px;">正在讀取綁定狀態...</p>
+      <button id="googleBindButton" type="button" class="btn btn-secondary" onclick="connectGoogle()" disabled>綁定 Google 帳號</button>
+      <button id="googleUnlinkButton" type="button" class="btn btn-secondary" onclick="unlinkGoogle()" style="display:none;">解除綁定</button>
+      <p id="googleConnectionMessage" aria-live="polite" style="font-size:12px; color:#6e6e73; margin-top:6px; min-height:18px;"></p>
+    </div>
     <div class="field">
       <label>Slack 發送通知 Channel ID（選填）</label>
       <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
@@ -445,9 +455,13 @@
     <div class="field">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
         <input type="checkbox" id="enableCalendar" checked>
-        <label for="enableCalendar" style="margin-bottom:0;">更新：Google Calendar Leave Event</label>
+        <label for="enableCalendar" style="margin-bottom:0;">更新：Google Calendar 不在辦公室事件</label>
       </div>
       <input type="text" id="cfmCalendarTitle">
+      <p id="calendarConnectionHint" style="display:none; color:#c0392b; font-size:12px; margin-top:6px;">
+        請先至設定頁綁定 Google 帳號
+        <button class="btn btn-link" style="font-size:12px; margin-left:4px;" onclick="goToSettings('pageConfirm')">前往 →</button>
+      </p>
     </div>
     <div class="actions">
       <button class="btn btn-secondary" onclick="showPage('pageUpload')">返回</button>
@@ -476,6 +490,7 @@
 <script>
   var gSlackChannelName = '';
   var gReturnPage = '';
+  var gGoogleConnection = { connected: false, email: '', loading: false };
 
   // ─── Page navigation ───────────────────────────────────────────────────────
   function showPage(id) {
@@ -499,6 +514,7 @@
     if (id) {
       loadSettingsAndProceed(id);
     } else {
+      localStorage.removeItem('googleOAuthResult');
       showPage('pageLogin');
     }
   };
@@ -508,6 +524,12 @@
       document.getElementById('slackChannelId').value = s.slackChannelId || '';
       document.getElementById('slackBaseName').value = s.slackBaseName || '';
       document.getElementById('slackNotifyUserId').value = s.slackNotifyUserId || '';
+      gGoogleConnection = {
+        connected: !!(s.googleConnection && s.googleConnection.connected),
+        email: s.googleConnection && s.googleConnection.email || '',
+        loading: false
+      };
+      renderGoogleConnection();
       if (s.slackChannelId) {
         google.script.run.withSuccessHandler(function(name) {
           gSlackChannelName = name || '';
@@ -515,7 +537,17 @@
           document.getElementById('notifyChannelHint').textContent = gSlackChannelName ? '(' + gSlackChannelName + ')' : '';
         }).withFailureHandler(function() {}).getSlackChannelName(id, s.slackChannelId);
       }
-      showPage('pageUpload');
+
+      var oauthResult = readGoogleOAuthResult();
+      if (oauthResult) {
+        var restoredDraft = restorePendingGoogleOAuthDraft();
+        showPage('pageSettings');
+        showGoogleConnectionResult(oauthResult.status);
+        if (!restoredDraft) clearPendingGoogleOAuthDraft();
+      } else {
+        clearPendingGoogleOAuthDraft();
+        showPage('pageUpload');
+      }
     }).withFailureHandler(onError).getSettings(id);
   }
 
@@ -554,6 +586,7 @@
   function cancelSettings() {
     var returnPage = gReturnPage;
     gReturnPage = '';
+    if (returnPage === 'pageConfirm') clearPendingGoogleOAuthDraft();
     showPage(returnPage || 'pageUpload');
   }
 
@@ -564,6 +597,170 @@
       })
       .withFailureHandler(onError)
       .startSlackOAuth();
+  }
+
+  function renderGoogleConnection() {
+    var status = document.getElementById('googleConnectionStatus');
+    var bindButton = document.getElementById('googleBindButton');
+    var unlinkButton = document.getElementById('googleUnlinkButton');
+    status.textContent = gGoogleConnection.connected
+      ? '已綁定：' + gGoogleConnection.email
+      : '尚未綁定 Google 帳號';
+    status.style.color = gGoogleConnection.connected ? '#1a7f3c' : '#3a3a3c';
+    bindButton.style.display = gGoogleConnection.connected ? 'none' : 'inline-flex';
+    unlinkButton.style.display = gGoogleConnection.connected ? 'inline-flex' : 'none';
+    bindButton.disabled = gGoogleConnection.loading;
+    unlinkButton.disabled = gGoogleConnection.loading;
+    renderCalendarAvailability(false);
+  }
+
+  function renderCalendarAvailability(resetSelection) {
+    var checkbox = document.getElementById('enableCalendar');
+    var title = document.getElementById('cfmCalendarTitle');
+    var hint = document.getElementById('calendarConnectionHint');
+    if (!checkbox || !title || !hint) return;
+    var connected = gGoogleConnection.connected;
+    checkbox.disabled = !connected;
+    title.disabled = !connected;
+    hint.style.display = connected ? 'none' : 'block';
+    if (!connected) checkbox.checked = false;
+    else if (resetSelection) checkbox.checked = true;
+  }
+
+  function setGoogleConnectionMessage(text, isError) {
+    var message = document.getElementById('googleConnectionMessage');
+    message.textContent = text || '';
+    message.style.color = isError ? '#c0392b' : '#6e6e73';
+  }
+
+  function setGoogleConnectionLoading(isLoading, message) {
+    gGoogleConnection.loading = isLoading;
+    renderGoogleConnection();
+    if (message !== undefined) setGoogleConnectionMessage(message, false);
+  }
+
+  function getConfirmDraft() {
+    return {
+      userName: document.getElementById('cfmUserName').value,
+      substitute: document.getElementById('cfmSubstitute').value,
+      startDate: document.getElementById('cfmStartDate').value,
+      endDate: document.getElementById('cfmEndDate').value,
+      isFullDay: document.getElementById('cfmIsFullDay').checked,
+      startTime: document.getElementById('cfmStartTime').value,
+      endTime: document.getElementById('cfmEndTime').value,
+      displayName: document.getElementById('displayNamePreview').value,
+      notifyMessage: document.getElementById('cfmNotifyMessage').value,
+      calendarTitle: document.getElementById('cfmCalendarTitle').value,
+      enableSlackName: document.getElementById('enableSlackName').checked,
+      enableSlackNotify: document.getElementById('enableSlackNotify').checked,
+      enableCalendar: document.getElementById('enableCalendar').checked
+    };
+  }
+
+  function savePendingGoogleOAuthDraft() {
+    if (gReturnPage !== 'pageConfirm') return;
+    try {
+      sessionStorage.setItem('googleOAuthDraft', JSON.stringify(getConfirmDraft()));
+      sessionStorage.setItem('googleOAuthReturnPage', 'pageConfirm');
+    } catch (err) {}
+  }
+
+  function restorePendingGoogleOAuthDraft() {
+    var returnPage;
+    var draft;
+    try {
+      returnPage = sessionStorage.getItem('googleOAuthReturnPage') || '';
+      var raw = sessionStorage.getItem('googleOAuthDraft');
+      draft = raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      return null;
+    }
+    if (returnPage !== 'pageConfirm' || !draft) return null;
+
+    document.getElementById('cfmUserName').value = draft.userName || '';
+    document.getElementById('cfmSubstitute').value = draft.substitute || '';
+    document.getElementById('cfmStartDate').value = draft.startDate || '';
+    document.getElementById('cfmEndDate').value = draft.endDate || '';
+    document.getElementById('cfmIsFullDay').checked = draft.isFullDay === true;
+    document.getElementById('cfmStartTime').value = draft.startTime || '';
+    document.getElementById('cfmEndTime').value = draft.endTime || '';
+    document.getElementById('displayNamePreview').value = draft.displayName || '';
+    document.getElementById('cfmNotifyMessage').value = draft.notifyMessage || '';
+    document.getElementById('cfmCalendarTitle').value = draft.calendarTitle || '';
+    document.getElementById('enableSlackName').checked = draft.enableSlackName !== false;
+    document.getElementById('enableSlackNotify').checked = draft.enableSlackNotify !== false;
+    document.getElementById('enableCalendar').checked = draft.enableCalendar !== false;
+    toggleTimeFields();
+    renderCalendarAvailability(false);
+    gReturnPage = 'pageConfirm';
+    return draft;
+  }
+
+  function clearPendingGoogleOAuthDraft() {
+    try {
+      sessionStorage.removeItem('googleOAuthDraft');
+      sessionStorage.removeItem('googleOAuthReturnPage');
+    } catch (err) {}
+  }
+
+  function connectGoogle() {
+    var id = getSlackUserId();
+    if (!id) {
+      logout();
+      return;
+    }
+    savePendingGoogleOAuthDraft();
+    setGoogleConnectionLoading(true, '正在準備 Google 授權...');
+    google.script.run
+      .withSuccessHandler(function(oauthUrl) {
+        window.top.location.href = oauthUrl;
+      })
+      .withFailureHandler(function(err) {
+        setGoogleConnectionLoading(false);
+        setGoogleConnectionMessage('無法開始綁定：' + (err.message || String(err)), true);
+      })
+      .startGoogleOAuth(id);
+  }
+
+  function unlinkGoogle() {
+    if (!confirm('確定要解除 Google 帳號綁定嗎？之後若要使用其他帳號，需要重新綁定並同意權限。')) return;
+    setGoogleConnectionLoading(true, '正在解除綁定...');
+    google.script.run
+      .withSuccessHandler(function() {
+        gGoogleConnection = { connected: false, email: '', loading: false };
+        renderGoogleConnection();
+        setGoogleConnectionMessage('Google 帳號已解除綁定。', false);
+      })
+      .withFailureHandler(function(err) {
+        setGoogleConnectionLoading(false);
+        setGoogleConnectionMessage('解除綁定失敗：' + (err.message || String(err)), true);
+      })
+      .unlinkGoogleAccount(getSlackUserId());
+  }
+
+  function readGoogleOAuthResult() {
+    var raw = localStorage.getItem('googleOAuthResult');
+    if (!raw) return null;
+    localStorage.removeItem('googleOAuthResult');
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      return { status: 'failed' };
+    }
+  }
+
+  function showGoogleConnectionResult(status) {
+    var messages = {
+      connected: 'Google 帳號綁定成功。',
+      cancelled: '已取消 Google 帳號綁定。',
+      wrong_domain: '請使用公司 Google Workspace 帳號。',
+      missing_scope: '未取得 Google Calendar 權限，請重新綁定並同意權限。',
+      missing_refresh_token: '未取得長期授權，請解除 Google 授權後再重新綁定。',
+      already_connected: '此 Slack 帳號已綁定 Google；若要更換帳號，請先解除綁定。',
+      failed: 'Google 帳號綁定失敗，請重新嘗試。'
+    };
+    var isError = ['wrong_domain', 'missing_scope', 'missing_refresh_token', 'already_connected', 'failed'].indexOf(status) !== -1;
+    setGoogleConnectionMessage(messages[status] || messages.failed, isError);
   }
 
   function saveSettings() {
@@ -619,6 +816,7 @@
     document.getElementById('cfmStartTime').value = '';
     document.getElementById('cfmEndTime').value = '';
     toggleTimeFields();
+    renderCalendarAvailability(true);
     updatePreviews();
     showPage('pageConfirm');
   }
@@ -669,6 +867,7 @@
     document.getElementById('cfmStartTime').value = isFullDay ? '' : (data.startTime || '');
     document.getElementById('cfmEndTime').value   = isFullDay ? '' : (data.endTime || '');
     toggleTimeFields();
+    renderCalendarAvailability(true);
     updatePreviews();
     showPage('pageConfirm');
   }
@@ -760,6 +959,7 @@
       enableSlackNotify: document.getElementById('enableSlackNotify').checked,
       enableCalendar:    document.getElementById('enableCalendar').checked
     };
+    clearPendingGoogleOAuthDraft();
     showPage('pageExecuting');
     google.script.run
       .withSuccessHandler(onExecuteSuccess)
@@ -769,20 +969,43 @@
 
   function onExecuteSuccess(results) {
     var steps = [
-      { key: 'calendar',    label: 'Google Calendar 建立 Leave.MT 事件' },
+      { key: 'calendar',    label: 'Google Calendar 建立不在辦公室事件' },
       { key: 'slackName',   label: 'Slack 更新顯示名稱' },
       { key: 'slackNotify', label: 'Slack 發送通知' }
     ];
-    document.getElementById('resultItems').innerHTML = steps
-      .filter(function(s) { return results[s.key] !== null; })
-      .map(function(s) {
-        var r = results[s.key];
-        var errHtml = r.error
-          ? '<br><span style="font-size:12px;opacity:0.75;">' + r.error + '</span>' : '';
-        return '<div class="result-item ' + (r.success ? 'success' : 'error') + '">'
-             + '<span class="result-icon">' + (r.success ? '✅' : '❌') + '</span>'
-             + '<span>' + s.label + errHtml + '</span></div>';
-      }).join('');
+    var container = document.getElementById('resultItems');
+    container.textContent = '';
+    steps.forEach(function(step) {
+      var result = results[step.key];
+      if (result === null) return;
+
+      var item = document.createElement('div');
+      item.className = 'result-item ' + (result.success ? 'success' : 'error');
+
+      var icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = result.success ? '✅' : '❌';
+      item.appendChild(icon);
+
+      var detail = document.createElement('span');
+      detail.textContent = step.label;
+      if (result.error) {
+        detail.appendChild(document.createElement('br'));
+        var error = document.createElement('span');
+        error.style.fontSize = '12px';
+        error.style.opacity = '0.75';
+        error.textContent = result.error;
+        detail.appendChild(error);
+      }
+      item.appendChild(detail);
+      container.appendChild(item);
+    });
+
+    if (results.calendar && results.calendar.code === 'GOOGLE_REAUTH_REQUIRED') {
+      gGoogleConnection = { connected: false, email: '', loading: false };
+      renderGoogleConnection();
+      setGoogleConnectionMessage('Google Calendar 授權已失效，請重新綁定 Google 帳號。', true);
+    }
     showPage('pageResult');
   }
 
