@@ -39,6 +39,16 @@
     input:focus, textarea:focus { border-color: #0071e3; background: #fff; }
     textarea { resize: vertical; min-height: 72px; }
     .field { margin-bottom: 18px; }
+    .settings-section {
+      border: 1px solid #e5e5ea;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .settings-section-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+    .settings-section .field:last-of-type { margin-bottom: 0; }
+    .connection-action { display: flex; align-items: center; gap: 10px; }
+    .connection-message { flex: 1; min-width: 0; font-size: 12px; color: #6e6e73; line-height: 1.4; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
@@ -55,6 +65,10 @@
     .btn:disabled:hover { opacity: 0.55; }
     .btn-primary { background: #0071e3; color: #fff; width: 100%; margin-top: 4px; }
     .btn-secondary { background: #e8e8ed; color: #1d1d1f; }
+    .btn-success-subtle { background: #eaf7ee; color: #1a7f3c; }
+    .btn-success-subtle:hover { background: #dcf1e3; opacity: 1; }
+    .btn-danger-subtle { background: #fff0f0; color: #c0392b; }
+    .btn-danger-subtle:hover { background: #ffe3e3; opacity: 1; }
     .btn-link { background: none; color: #0071e3; font-size: 13px; padding: 0; border: none; cursor: pointer; }
     .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
     .upload-area {
@@ -319,34 +333,39 @@
       <h1>設定</h1>
       <button class="btn btn-link" onclick="document.getElementById('tutorialModal').classList.add('open')">教學</button>
     </div>
-    <p class="subtitle">以下為選填設定，僅儲存於 Google Apps Script，不會外傳。</p>
-    <div class="field">
-      <label>個人 Google Calendar</label>
+    <p class="subtitle">以下為選填設定，僅儲存於 Google Apps Script，不會外洩。</p>
+    <section class="settings-section">
+      <h2 class="settings-section-title">個人 Google Calendar</h2>
       <p style="font-size:13px; color:#6e6e73; line-height:1.5; margin-bottom:8px;">
         綁定公司 Google 帳號後，系統會在該帳號的主要日曆建立不在辦公室事件，並自動拒絕所有衝突邀請。
       </p>
       <p id="googleConnectionStatus" style="font-size:13px; font-weight:500; margin-bottom:10px;">正在讀取綁定狀態...</p>
-      <button id="googleBindButton" type="button" class="btn btn-secondary" onclick="connectGoogle()" disabled>綁定 Google 帳號</button>
-      <button id="googleUnlinkButton" type="button" class="btn btn-secondary" onclick="unlinkGoogle()" style="display:none;">解除綁定</button>
-      <p id="googleConnectionMessage" aria-live="polite" style="font-size:12px; color:#6e6e73; margin-top:6px; min-height:18px;"></p>
-    </div>
+      <div class="connection-action">
+        <button id="googleBindButton" type="button" class="btn btn-success-subtle" onclick="connectGoogle()" disabled>綁定 Google 帳號</button>
+        <button id="googleUnlinkButton" type="button" class="btn btn-danger-subtle" onclick="unlinkGoogle()" style="display:none;">解除綁定</button>
+        <p id="googleConnectionMessage" class="connection-message" aria-live="polite"></p>
+      </div>
+    </section>
+    <section class="settings-section">
+      <h2 class="settings-section-title">Slack</h2>
+      <div class="field">
+        <label>發送通知 Channel ID（選填）</label>
+        <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
+        <p id="channelNameHint" style="font-size:12px; color:#6e6e73; margin-top:4px; min-height:16px;"></p>
+      </div>
+      <div class="field">
+        <label>通知對象 User ID（選填：若訊息想要 cc 特定對象）</label>
+        <input type="text" id="slackNotifyUserId" placeholder="UXXXXXXXXX">
+      </div>
+      <p style="font-size:12px; color:#6e6e73; margin-top:14px;">
+        找不到 Channel ID 或 User ID？→
+        <button class="btn btn-link" style="font-size:12px;" onclick="document.getElementById('tutorialModal').classList.add('open')">查看右上方教學</button>
+      </p>
+    </section>
     <div class="field">
-      <label>Slack 發送通知 Channel ID（選填）</label>
-      <input type="text" id="slackChannelId" placeholder="C0XXXXXXXXX" oninput="onChannelIdInput()">
-      <p id="channelNameHint" style="font-size:12px; color:#6e6e73; margin-top:4px; min-height:16px;"></p>
-    </div>
-    <div class="field">
-      <label>Slack 通知對象 User ID（選填：若訊息想要 cc 特定對象）</label>
-      <input type="text" id="slackNotifyUserId" placeholder="UXXXXXXXXX">
-    </div>
-    <div class="field">
-      <label>訊息顯示名稱（選填，預設使用公司英文名）</label>
+      <label>客製化顯示名稱（選填，預設使用公司英文名）</label>
       <input type="text" id="slackBaseName" placeholder="">
     </div>
-    <p style="font-size:12px; color:#6e6e73; margin-bottom:18px;">
-      找不到 Channel ID 或 User ID？→
-      <button class="btn btn-link" style="font-size:12px;" onclick="document.getElementById('tutorialModal').classList.add('open')">查看右上方教學</button>
-    </p>
     <div style="display:flex; gap:10px;">
       <button class="btn btn-secondary" style="flex:1;" onclick="cancelSettings()">返回</button>
       <button class="btn btn-primary" style="flex:2; margin-top:0;" onclick="saveSettings()">儲存設定</button>
@@ -729,7 +748,7 @@
       .withSuccessHandler(function() {
         gGoogleConnection = { connected: false, email: '', loading: false };
         renderGoogleConnection();
-        setGoogleConnectionMessage('Google 帳號已解除綁定。', false);
+        setGoogleConnectionMessage('', false);
       })
       .withFailureHandler(function(err) {
         setGoogleConnectionLoading(false);
