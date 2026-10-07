@@ -366,7 +366,7 @@
       </p>
     </section>
     <div class="field">
-      <label>客製化顯示名稱（選填，預設使用公司英文名）</label>
+      <label>顯示名稱（選填，預設使用公司英文名）</label>
       <input type="text" id="slackBaseName" placeholder="">
     </div>
     <div style="display:flex; gap:10px;">
@@ -1008,10 +1008,16 @@
 
   // ─── Execute ───────────────────────────────────────────────────────────────
   function validateLeavePeriod() {
+    var substitute = document.getElementById('cfmSubstitute').value.trim();
     var startDate = document.getElementById('cfmStartDate').value;
     var endDate = document.getElementById('cfmEndDate').value;
     var isFullDay = document.getElementById('cfmIsFullDay').checked;
 
+    if (!substitute) {
+      alert('請填寫代理人。');
+      document.getElementById('cfmSubstitute').focus();
+      return false;
+    }
     if (!startDate || !endDate) {
       alert('請填寫開始日期與結束日期。');
       return false;
